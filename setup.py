@@ -6,7 +6,7 @@ import io
 from setuptools import setup
 
 setup(
-    name='qnapstats',
+    name='qnapstats-test',
     description='Python API for obtaining QNAP NAS system stats',
     long_description=io.open('README.rst', encoding='utf-8').read(),
     version='0.4.0',
