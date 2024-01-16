@@ -2,14 +2,14 @@
 python-qnapstats
 ================
 
-.. image:: https://img.shields.io/travis/colinodell/python-qnapstats/master.svg?style=flat-square
-   :target: https://travis-ci.org/colinodell/python-qnapstats
+.. image:: https://img.shields.io/github/actions/workflow/status/colinodell/python-qnapstats/test.yml?branch=master&?style=flat-square
+   :target: https://github.com/colinodell/python-qnapstats/actions?query=workflow%3ATest+branch%3Amaster
    :alt: Build Status
 .. image:: https://img.shields.io/pypi/pyversions/qnapstats.svg?style=flat-square
    :target: https://pypi.python.org/pypi/qnapstats
    :alt: Supported Python Versions
 
-Library from obtaining system information from QNAP NAS devices.
+Library from obtaining system information from QNAP NAS devices running QTS.
 
 Installation
 ============
@@ -43,30 +43,87 @@ Usage Example
     pprint(qnap.get_volumes())
     pprint(qnap.get_bandwidth())
 
-**Note:** The user you connect with must be in the admin group.
+**Note:** The user you connect with must be in the admin group. It doesn't necessarily
+need to be THE "administrator" account, but you do need to use some account in the
+administrators group.  MFA must also be disabled for that user for this library to work.
 
 Device Support
 ==============
 
 This library has been tested against the following devices and firmwares:
 
-+---------+-----------------------+---------------------------------------+
-| Model   | QTS Firmware Versions | Notes                                 |
-+=========+=======================+=======================================+
-| TS-110  | 4.2.4                 |                                       |
-+---------+-----------------------+---------------------------------------+
-| TS-269L | 4.3.3                 | User-reported: no automated tests     |
-+---------+-----------------------+---------------------------------------+
-| TS-410  | 4.2.3                 | This device does not report CPU temps |
-+---------+-----------------------+---------------------------------------+
-| TS-451  | 4.2.2 - 4.2.4         |                                       |
-+---------+-----------------------+---------------------------------------+
-| TS-453A | 4.3.4                 |                                       |
-+---------+-----------------------+---------------------------------------+
-| TS-639  | 4.2.3                 |                                       |
-+---------+-----------------------+---------------------------------------+
-| TS-659  | 4.2.6                 | May report `None` for some disk temps |
-+---------+-----------------------+---------------------------------------+
++--------------+------------------------+---------------------------------------+
+| Model        | QTS* Firmware Versions | Notes                                 |
++==============+========================+=======================================+
+| D4 Pro       | 4.5.1                  | User-reported: no automated tests     |
++--------------+------------------------+---------------------------------------+
+| TS-110       | 4.2.4                  |                                       |
++--------------+------------------------+---------------------------------------+
+| TS-112P      | 4.3.3                  | This device does not report CPU temps |
++--------------+------------------------+---------------------------------------+
+| TS-210       | 4.2.6                  | This device does not report CPU temps |
++--------------+------------------------+---------------------------------------+
+| TS-219P II   | 4.3.3                  | User-reported: no automated tests     |
++--------------+------------------------+---------------------------------------+
+| TS-251B      | 4.4.3                  |                                       |
++--------------+------------------------+---------------------------------------+
+| TS-228A      | 5.0.1                  | This device does not report CPU temps |
++--------------+------------------------+---------------------------------------+
+| TS-233       | 5.1.x                  |                                       |
++--------------+------------------------+---------------------------------------+
+| TS-251+      | 4.5.1                  | No information on dnsInfo             |
++--------------+------------------------+---------------------------------------+
+| TS-253 Pro   | 4.5.2                  |                                       |
++--------------+------------------------+---------------------------------------+
+| TS-253D      | 4.5.3                  |                                       |
++--------------+------------------------+---------------------------------------+
+| TS-332       | 5.0.0                  |                                       |
++--------------+------------------------+---------------------------------------+
+| TS-364       | 5.0.1                  |                                       |
++--------------+------------------------+---------------------------------------+
+| TS-269L      | 4.3.3                  | User-reported: no automated tests     |
++--------------+------------------------+---------------------------------------+
+| TS-410       | 4.2.3                  | This device does not report CPU temps |
++--------------+------------------------+---------------------------------------+
+| TS-412       | 4.3.3                  | This device does not report CPU temps |
++--------------+------------------------+---------------------------------------+
+| TS-431P      | 4.3.4                  |                                       |
++--------------+------------------------+---------------------------------------+
+| TS-451       | 4.2.2 - 4.2.4          |                                       |
++--------------+------------------------+---------------------------------------+
+| TS-453A      | 4.3.4; 5.0.1           |                                       |
++--------------+------------------------+---------------------------------------+
+| TS-453Be     | 4.2.3; 5.0.1           |                                       |
++--------------+------------------------+---------------------------------------+
+| TS-639       | 4.2.3                  |                                       |
++--------------+------------------------+---------------------------------------+
+| TS-659       | 4.2.6                  | May report `None` for some disk temps |
++--------------+------------------------+---------------------------------------+
+| TS-853 Pro   | 4.5.4                  |                                       |
++--------------+------------------------+---------------------------------------+
+| TS-869 Pro   | 4.3.4                  |                                       |
++--------------+------------------------+---------------------------------------+
+| TS-873A      | 5.0.1.2248             |                                       |
++--------------+------------------------+---------------------------------------+
+| TS-1677XU-RP | 4.5.2                  |                                       |
++--------------+------------------------+---------------------------------------+
+| TS-EC1280U   | 4.5.2                  |                                       |
++--------------+------------------------+---------------------------------------+
+| TS-h886      | QuTS h5.0.1.2376       |                                       |
++--------------+------------------------+---------------------------------------+
+| TS-X53       | 4.5.4                  |                                       |
++--------------+------------------------+---------------------------------------+
+| TVS-672N     | 5.0.1                  |                                       |
++--------------+------------------------+---------------------------------------+
+| TVS-1282     | 5.0.1                  |                                       |
++--------------+------------------------+---------------------------------------+
 
-Other QNAP devices using these firmwares should probably work fine, as should the devices listed above on newer firmwares.
+⚠️ *QuTS is not currently supported - see [issue #84](https://github.com/colinodell/python-qnapstats/issues/84)*
+
+Other QNAP devices using these QTS firmwares should probably work fine, as should the devices listed above on newer firmwares.
 If you encounter any compatibility issues, please let us know (or better yet, contribute a patch!)
+
+
+**Upgrading to QTS 5?** Make sure the account you connect with meets the criteria listed earlier in this README.
+Also be sure to log into your NAS and complete any agreements, warnings, wizards, etc. that may prevent this
+library from using the QNAP API.

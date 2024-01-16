@@ -1,5 +1,6 @@
 """Module containing multiple classes to obtain QNAP system stats via cgi calls."""
 # -*- coding:utf-8 -*-
+import base64
 import json
 import xmltodict
 import requests
@@ -12,7 +13,6 @@ class QNAPStats:
     # pylint: disable=too-many-arguments
     def __init__(self, host, port, username, password, debugmode=False, verify_ssl=True, timeout=5):
         """Instantiate a new qnap_stats object."""
-        import base64
         self._username = username
         self._password = base64.b64encode(password.encode('utf-8')).decode('ascii')
 
@@ -28,7 +28,7 @@ class QNAPStats:
         self._verify_ssl = verify_ssl
         self._timeout = timeout
 
-        self._base_url = '%s:%s/cgi-bin/' % (host, port)
+        self._base_url = f"{host}:{port}/cgi-bin/"
 
     def _debuglog(self, message):
         """Output message if debug mode is enabled."""
@@ -57,10 +57,16 @@ class QNAPStats:
         data = {"user": self._username, "pwd": self._password}
         result = self._execute_post_url("authLogin.cgi", data, False)
 
+        if result is None or not result.get("authSid"):
+            # Another method to login
+            suffix_url = "authLogin.cgi?user=" + self._username + "&pwd=" + self._password
+            result = self._execute_get_url(suffix_url, False)
+
         if result is None:
             return False
 
         self._sid = result["authSid"]
+
         return True
 
     def _get_url(self, url, retry_on_error=True, **kwargs):
@@ -81,7 +87,7 @@ class QNAPStats:
 
         if append_sid:
             self._debuglog("Appending access_token (SID: " + self._sid + ") to url")
-            url = "%s&sid=%s" % (url, self._sid)
+            url = f"{url}&sid={self._sid}"
 
         resp = self._session.get(url, timeout=self._timeout, verify=self._verify_ssl)
         return self._handle_response(resp, **kwargs)
@@ -112,7 +118,7 @@ class QNAPStats:
         self._debuglog("Response Text: " + resp.text)
         data = xmltodict.parse(resp.content, force_list=force_list)['QDocRoot']
 
-        auth_passed = data['authPassed']
+        auth_passed = data.get('authPassed')
         if auth_passed is not None and len(auth_passed) == 1 and auth_passed == "0":
             self._session_error = True
             return None
@@ -141,6 +147,9 @@ class QNAPStats:
         if resp is None:
             return None
 
+        if resp["volumeList"] is None or resp["volumeUseList"] is None:
+            return {}
+
         volumes = {}
         id_map = {}
 
@@ -159,7 +168,7 @@ class QNAPStats:
             id_number = vol["volumeValue"]
 
             # Skip any system reserved volumes
-            if id_number not in id_map.keys():
+            if id_number not in id_map:
                 continue
 
             key = id_map[id_number]
@@ -182,7 +191,7 @@ class QNAPStats:
 
     def get_smart_disk_health(self):
         """Obtain SMART information about each disk."""
-        resp = self._get_url("disk/qsmart.cgi?func=all_hd_data", force_list=("entry"))
+        resp = self._get_url("disk/qsmart.cgi?func=all_hd_data", force_list="entry")
 
         if resp is None:
             return None
@@ -267,8 +276,10 @@ class QNAPStats:
                 "err_packets": int(root["err_packet" + i])
             }
 
-        for dns in root["dnsInfo"]["DNS_LIST"]:
-            details["dns"].append(dns)
+        dnsInfo = root.get("dnsInfo")
+        if dnsInfo:
+            for dns in dnsInfo["DNS_LIST"]:
+                details["dns"].append(dns)
 
         return details
 
@@ -276,23 +287,43 @@ class QNAPStats:
         """Obtain the current bandwidth usage speeds."""
         resp = self._get_url(
             "management/chartReq.cgi?chart_func=QSM40bandwidth",
-            force_list=("item")
+            force_list="item"
         )
+
+        if resp and "bandwidth_info" not in resp:
+            # changes in API since QTS 4.5.4, old query returns no values
+            resp = self._get_url("management/chartReq.cgi?chart_func=bandwidth")
 
         if resp is None:
             return None
 
         details = {}
+        interfaces = []
+        bandwidth_info = resp["bandwidth_info"]
 
-        default = resp["bandwidth_info"]["df_gateway"]
+        default = resp.get("df_gateway") or bandwidth_info.get("df_gateway")
 
-        for item in resp["bandwidth_info"]["item"]:
-            interface = item["id"]
-            details[interface] = {
-                "name": item["name"],
+        if "item" in bandwidth_info:
+            interfaces.extend(bandwidth_info["item"])
+        else:
+            interfaceIds = []
+            if bandwidth_info["eth_index_list"]:
+                for num in bandwidth_info["eth_index_list"].split(','):
+                    interfaceIds.append("eth" + num)
+            if bandwidth_info["wlan_index_list"]:
+                for num in bandwidth_info["wlan_index_list"].split(','):
+                    interfaceIds.append("wlan" + num)
+            for interfaceId in interfaceIds:
+                interface = bandwidth_info[interfaceId]
+                interface["id"] = interfaceId
+                interfaces.extend([interface])
+
+        for item in interfaces:
+            details[item["id"]] = {
+                "name": item["dname"] if "dname" in item else item["name"],
                 "rx": round(int(item["rx"]) / 5),
                 "tx": round(int(item["tx"]) / 5),
-                "is_default": interface == default
+                "is_default": item["id"] == default
             }
 
         return details
@@ -308,3 +339,29 @@ class QNAPStats:
             return None
 
         return new_version
+
+    def list_external_drive(self):
+        """List External drive connected on qnap."""
+        data = {"func": "getExternalDev"}
+        resp = self._execute_post_url("devices/devRequest.cgi", data=data)
+        if resp is None:
+            return None
+
+        external_drives = resp.get("func", {}).get("ownContent", {}).get("externalDevice")
+        if external_drives is None or len(external_drives) == 0:
+            return None
+
+        return external_drives
+
+    def get_storage_information_on_external_device(self):
+        """Get informations on volumes in External drive connected on qnap."""
+        data = {"func": "external_get_all"}
+        resp = self._execute_post_url("disk/disk_manage.cgi", data=data)
+        if resp is None:
+            return None
+
+        disk_vol = resp.get("Disk_Vol")
+        if disk_vol is None or len(disk_vol) == 0:
+            return None
+
+        return disk_vol
